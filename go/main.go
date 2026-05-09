@@ -10,6 +10,7 @@ import (
 
 type FuzzySearchMatch struct {
 	minimumEditDistance int
+	score               float64
 	runeOffset          int
 	byteOffset          int
 	runeCount           int
@@ -27,8 +28,16 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 	byteCount := 0
 
 	if search == "" || test == "" {
+		var score float64
+		if search == "" {
+			score = 1.0
+		} else {
+			score = 0.0
+		}
+
 		return FuzzySearchMatch{
 			minimumEditDistance: minimumEditDistance,
+			score:               score,
 			runeOffset:          runeOffset,
 			byteOffset:          byteOffset,
 			runeCount:           runeCount,
@@ -89,6 +98,9 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 				searchRuneLength := bytesInRune(search[sb])
 				c := si + 1
 
+				// instead of converting the bytes in search and test
+				// to runes, just check if the bytes match
+				//#region check bytes for match
 				match := searchRuneLength == testRuneLength
 
 				if match {
@@ -100,8 +112,11 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 					}
 				}
 
-				// testRune := runeAtBytesInString(test, tb, testRuneLength)
 				// searchRune := runeAtBytesInString(search, sb, searchRuneLength)
+				// testRune := runeAtBytesInString(test, tb, testRuneLength)
+				// match := testRune == searchRune
+				//#endregion
+
 				// TODO handle invalid runes
 				if match {
 					row[c] = prevRow[c-1]
@@ -179,8 +194,12 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 		}
 	}
 
+	matchCount := searchLength - minimumEditDistance
+	score := float64(matchCount) / float64(searchLength)
+
 	result := FuzzySearchMatch{
 		minimumEditDistance: minimumEditDistance,
+		score:               score,
 		runeOffset:          runeOffset,
 		byteOffset:          byteOffset,
 		runeCount:           runeCount,
@@ -201,14 +220,17 @@ func main() {
 	bigS := string(data)
 	println(bytesInRune(bigS[3]))
 
-	start := time.Now()
-	fsm := fuzzySearch(bigS, "what is a good phrase to put in my fuzzy search?")
-	stop := time.Now()
-	elapsed := stop.Sub(start).Milliseconds()
+	for range 20 {
+		start := time.Now()
 
-	ss := bigS[fsm.byteOffset : fsm.byteOffset+fsm.byteCount]
-	fmt.Println(fsm, ss)
-	println(elapsed)
+		fsm := fuzzySearch(bigS, "what is a good phrase to put in my fuzzy search?")
+		stop := time.Now()
+		elapsed := float64(stop.Sub(start).Microseconds()) / 1000.0
+
+		ss := bigS[fsm.byteOffset : fsm.byteOffset+fsm.byteCount]
+		fmt.Println(fsm, ss)
+		println(elapsed)
+	}
 
 }
 
@@ -219,6 +241,9 @@ func bytesInRune(start byte) int {
 	if start&0b1000_0000 == 0 {
 		return 1
 	} else if start&0b0100_0000 == 0 {
+		// 0 indicates that the given byte
+		// is not the starting byte
+		// of a utf8 character
 		return 0
 	} else if start&0b0010_0000 == 0 {
 		return 2
