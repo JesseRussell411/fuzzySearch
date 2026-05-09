@@ -55,30 +55,42 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 
 	prevRow := seedRow
 
+	// window byte offset
 	wb := 0
+	// window rune offset
 	wi := 0
 
 	potentialEditDistanceForWI := 0
 	for {
+		// byte count of rune at start of window
 		windowRuneLength := bytesInRune(test[wb])
 		// TODO handle invalid runes
+
+		// byte count of current rune in test
 		testRuneLength := windowRuneLength
 
+		// edit distance of best substring in window (the one with the lowest ED)
 		minimumEditDistanceFromWI := math.MaxInt
+		// rune count of best substring in window
 		lOfMinimumEditDistanceFromWI := 0
+		// byte count of best substring in window
 		bcOfMinimumEditDistanceFromWI := 0
 
+		// window byte count
 		wbc := 0
 
+		// test byte offset
 		tb := wb
+		// test rune offset
 		ti := wi
+		// window length
 		wl := 1
 
 		// check if it's worth checking the windows position
 		if potentialEditDistanceForWI >= minimumEditDistance {
 			// if not: skip to the next one
 			potentialEditDistanceForWI -= 2
-			goto nextWindowPosition
+			goto nextWindowPosition // this is all the way down here because goto's can't jump over variable declarations
 		}
 
 		for {
@@ -86,12 +98,15 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 			if wbc >= len(test)-wb {
 				break
 			}
+			// ED matrix row
 			r := wl
 
 			// populate seed column
 			row[0] = r
 
+			// search rune offset
 			si := 0
+			// search byte offset
 			sb := 0
 			for {
 				// TODO? cache this in a lookup table?
@@ -211,12 +226,12 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 
 func main() {
 
-	data, err := os.ReadFile("./bigS.txt")
+	data, err := os.ReadFile("../bigS.txt")
 	if err != nil {
 		panic("couldn't read bigS: " + err.Error())
 	}
 
-	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄 hello 𐀄"
+	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄 hello 𐀄" <-- for testing multi byte runes
 	bigS := string(data)
 	println(bytesInRune(bigS[3]))
 
