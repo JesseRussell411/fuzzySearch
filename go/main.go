@@ -3,14 +3,16 @@ package main
 import (
 	"fmt"
 	"math"
+	"os"
+	"time"
 	"unicode/utf8"
 )
 
 type FuzzySearchMatch struct {
 	minimumEditDistance int
-	index               int
+	runeOffset          int
 	byteOffset          int
-	length              int
+	runeCount           int
 	byteCount           int
 }
 
@@ -19,18 +21,18 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 
 	// default values for empty string
 	minimumEditDistance := searchLength
-	charIndex := 0
-	byteIndex := 0
-	charLength := 0
-	byteLength := 0
+	runeOffset := 0
+	byteOffset := 0
+	runeCount := 0
+	byteCount := 0
 
 	if search == "" || test == "" {
 		return FuzzySearchMatch{
 			minimumEditDistance: minimumEditDistance,
-			index:               charIndex,
-			byteOffset:          byteIndex,
-			length:              charLength,
-			byteCount:           byteLength,
+			runeOffset:          runeOffset,
+			byteOffset:          byteOffset,
+			runeCount:           runeCount,
+			byteCount:           byteCount,
 		}
 	}
 
@@ -50,11 +52,12 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 	potentialEditDistanceForWI := 0
 	for {
 		windowRuneLength := bytesInRune(test[wb])
+		// TODO handle invalid runes
 		testRuneLength := windowRuneLength
 
-		minimumEditDistanceForWI := math.MaxInt
-		lOfMinimumEditDistanceForWI := 0
-		bcOfMinimumEditDistanceForWI := 0
+		minimumEditDistanceFromWI := math.MaxInt
+		lOfMinimumEditDistanceFromWI := 0
+		bcOfMinimumEditDistanceFromWI := 0
 
 		wbc := 0
 
@@ -78,7 +81,6 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 
 			// populate seed column
 			row[0] = r
-			println("r ", r)
 
 			si := 0
 			sb := 0
@@ -86,23 +88,30 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 				// TODO? cache this in a lookup table?
 				searchRuneLength := bytesInRune(search[sb])
 				c := si + 1
-				println("c", c)
 
-				testRune, _ := runeAtByteInString(test, tb)
-				searchRune, _ := runeAtByteInString(search, sb)
-				if searchRune == testRune {
+				match := searchRuneLength == testRuneLength
+
+				if match {
+					for rb := 0; rb < testRuneLength; rb++ {
+						match = search[sb+rb] == test[tb+rb]
+						if !match {
+							break
+						}
+					}
+				}
+
+				// testRune := runeAtBytesInString(test, tb, testRuneLength)
+				// searchRune := runeAtBytesInString(search, sb, searchRuneLength)
+				// TODO handle invalid runes
+				if match {
 					row[c] = prevRow[c-1]
 				} else {
 					north := prevRow[c]
 					northWest := prevRow[c-1]
 					west := row[c-1]
-					println("n ", north)
-					println("nw", northWest)
-					println(" w", west)
 
 					row[c] = 1 + min(north, northWest, west)
 				}
-				println("ed--", row[c])
 
 				si++
 				sb += searchRuneLength
@@ -118,10 +127,10 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 			row = nextRow
 			nextRow = temp
 
-			if editDist <= minimumEditDistanceForWI {
-				minimumEditDistanceForWI = editDist
-				lOfMinimumEditDistanceForWI = wl
-				bcOfMinimumEditDistanceForWI = wbc
+			if editDist <= minimumEditDistanceFromWI {
+				minimumEditDistanceFromWI = editDist
+				lOfMinimumEditDistanceFromWI = wl
+				bcOfMinimumEditDistanceFromWI = wbc
 			}
 
 			// clamp window size
@@ -135,16 +144,17 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 			wl++
 
 			testRuneLength = bytesInRune(test[tb])
+			// TODO handle invalid runes
 		}
 		// reset rows
 		prevRow = seedRow
 
-		if minimumEditDistanceForWI < minimumEditDistance {
-			minimumEditDistance = minimumEditDistanceForWI
-			byteIndex = wb
-			charIndex = wi
-			byteLength = bcOfMinimumEditDistanceForWI
-			charLength = lOfMinimumEditDistanceForWI
+		if minimumEditDistanceFromWI < minimumEditDistance {
+			minimumEditDistance = minimumEditDistanceFromWI
+			byteOffset = wb
+			runeOffset = wi
+			byteCount = bcOfMinimumEditDistanceFromWI
+			runeCount = lOfMinimumEditDistanceFromWI
 		}
 
 		// check for perfect match
@@ -154,10 +164,10 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 		}
 
 		// update potential edit distance for window position
-		if minimumEditDistanceForWI == math.MaxInt {
+		if minimumEditDistanceFromWI == math.MaxInt {
 			potentialEditDistanceForWI -= 2
 		} else {
-			potentialEditDistanceForWI = minimumEditDistanceForWI - 2
+			potentialEditDistanceForWI = minimumEditDistanceFromWI - 2
 		}
 
 	nextWindowPosition:
@@ -171,20 +181,35 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 
 	result := FuzzySearchMatch{
 		minimumEditDistance: minimumEditDistance,
-		index:               charIndex,
-		byteOffset:          byteIndex,
-		length:              charLength,
-		byteCount:           byteLength,
+		runeOffset:          runeOffset,
+		byteOffset:          byteOffset,
+		runeCount:           runeCount,
+		byteCount:           byteCount,
 	}
 
 	return result
 }
 
 func main() {
-	s := "the fox jumps"
-	fsm := fuzzySearch(s, "fax")
-	ss := s[fsm.index : fsm.index+fsm.length]
+
+	data, err := os.ReadFile("./bigS.txt")
+	if err != nil {
+		panic("couldn't read bigS: " + err.Error())
+	}
+
+	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄 hello 𐀄"
+	bigS := string(data)
+	println(bytesInRune(bigS[3]))
+
+	start := time.Now()
+	fsm := fuzzySearch(bigS, "what is a good phrase to put in my fuzzy search?")
+	stop := time.Now()
+	elapsed := stop.Sub(start).Milliseconds()
+
+	ss := bigS[fsm.byteOffset : fsm.byteOffset+fsm.byteCount]
 	fmt.Println(fsm, ss)
+	println(elapsed)
+
 }
 
 func use(...any) {
@@ -216,13 +241,25 @@ func runeAtByteInString(s string, b int) (r rune, l int) {
 	l = bytesInRune(s[b])
 	bytes := make([]byte, l)
 
-	for i := 0; i < l; i++ {
+	for i := range l {
 		bytes[i] = s[i+b]
 	}
 
 	r, l = utf8.DecodeRune(bytes)
 
 	return
+}
+
+func runeAtBytesInString(s string, b int, l int) rune {
+	bytes := make([]byte, l)
+
+	for i := range l {
+		bytes[i] = s[i+b]
+	}
+
+	r, _ := utf8.DecodeRune(bytes)
+
+	return r
 }
 
 // import "strings"
