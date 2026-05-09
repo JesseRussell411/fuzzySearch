@@ -8,15 +8,16 @@ import (
 
 type FuzzySearchMatch struct {
 	minimumEditDistance int
-	charIndex           int
-	byteIndex           int
-	charLength          int
-	byteLength          int
+	index               int
+	byteOffset          int
+	length              int
+	byteCount           int
 }
 
 func fuzzySearch(test, search string) FuzzySearchMatch {
 	searchLength := utf8.RuneCountInString(search)
 
+	// default values for empty string
 	minimumEditDistance := searchLength
 	charIndex := 0
 	byteIndex := 0
@@ -26,10 +27,10 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 	if search == "" || test == "" {
 		return FuzzySearchMatch{
 			minimumEditDistance: minimumEditDistance,
-			charIndex:           charIndex,
-			byteIndex:           byteIndex,
-			charLength:          charLength,
-			byteLength:          byteLength,
+			index:               charIndex,
+			byteOffset:          byteIndex,
+			length:              charLength,
+			byteCount:           byteLength,
 		}
 	}
 
@@ -47,18 +48,19 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 	wi := 0
 
 	potentialEditDistanceForWI := 0
-windowPosition:
 	for {
 		windowRuneLength := bytesInRune(test[wb])
 		testRuneLength := windowRuneLength
+
+		minimumEditDistanceForWI := math.MaxInt
+		lOfMinimumEditDistanceForWI := 0
+		bcOfMinimumEditDistanceForWI := 0
 
 		wbc := 0
 
 		tb := wb
 		ti := wi
 		wl := 1
-		r := wl
-		minimumEditDistanceForWI := math.MaxInt
 
 		// check if it's worth checking the windows position
 		if potentialEditDistanceForWI >= minimumEditDistance {
@@ -69,8 +71,14 @@ windowPosition:
 
 		for {
 			wbc += testRuneLength
+			if wbc >= len(test)-wb {
+				break
+			}
+			r := wl
+
 			// populate seed column
 			row[0] = r
+			println("r ", r)
 
 			si := 0
 			sb := 0
@@ -78,6 +86,7 @@ windowPosition:
 				// TODO? cache this in a lookup table?
 				searchRuneLength := bytesInRune(search[sb])
 				c := si + 1
+				println("c", c)
 
 				testRune, _ := runeAtByteInString(test, tb)
 				searchRune, _ := runeAtByteInString(search, sb)
@@ -87,55 +96,61 @@ windowPosition:
 					north := prevRow[c]
 					northWest := prevRow[c-1]
 					west := row[c-1]
+					println("n ", north)
+					println("nw", northWest)
+					println(" w", west)
 
 					row[c] = 1 + min(north, northWest, west)
 				}
-				// rotate rows
-				prevRow = row
-				temp := row
-				row = nextRow
-				nextRow = temp
+				println("ed--", row[c])
 
 				si++
 				sb += searchRuneLength
-				if sb > len(search) {
+				if sb >= len(search) {
 					break
 				}
 			}
-			// reset rows
-			prevRow = seedRow
 
 			editDist := row[searchLength]
-			minimumEditDistanceForWI = min(minimumEditDistanceForWI, editDist)
+			// rotate rows
+			prevRow = row
+			temp := row
+			row = nextRow
+			nextRow = temp
 
-			if editDist < minimumEditDistance {
-				minimumEditDistance = editDist
-				byteIndex = wb
-				charIndex = wi
-				byteLength = wbc
-				charLength = wl
+			if editDist <= minimumEditDistanceForWI {
+				minimumEditDistanceForWI = editDist
+				lOfMinimumEditDistanceForWI = wl
+				bcOfMinimumEditDistanceForWI = wbc
 			}
 
 			// clamp window size
 			potentialEditDist := editDist - (searchLength - wl)
-			if potentialEditDist >= minimumEditDistance {
+			if potentialEditDist > minimumEditDistance {
 				break
-			}
-
-			// check for perfect match
-			if minimumEditDistance == 0 {
-				// perfect match found
-				break windowPosition
 			}
 
 			tb += testRuneLength
-			testRuneLength = bytesInRune(test[tb])
 			ti++
-
 			wl++
-			if wl > searchLength*2 {
-				break
-			}
+
+			testRuneLength = bytesInRune(test[tb])
+		}
+		// reset rows
+		prevRow = seedRow
+
+		if minimumEditDistanceForWI < minimumEditDistance {
+			minimumEditDistance = minimumEditDistanceForWI
+			byteIndex = wb
+			charIndex = wi
+			byteLength = bcOfMinimumEditDistanceForWI
+			charLength = lOfMinimumEditDistanceForWI
+		}
+
+		// check for perfect match
+		if minimumEditDistance == 0 {
+			// perfect match found
+			break
 		}
 
 		// update potential edit distance for window position
@@ -149,46 +164,27 @@ windowPosition:
 		wb += windowRuneLength
 		wi++
 
-		if wb > len(test) {
+		if wb >= len(test) {
 			break
 		}
 	}
 
 	result := FuzzySearchMatch{
 		minimumEditDistance: minimumEditDistance,
-		charIndex:           charIndex,
-		byteIndex:           byteIndex,
-		charLength:          charLength,
-		byteLength:          byteLength,
+		index:               charIndex,
+		byteOffset:          byteIndex,
+		length:              charLength,
+		byteCount:           byteLength,
 	}
 
 	return result
 }
 
 func main() {
-	s := "a𐀄bc"
-
-	ss := s[0:1]
-
-	fmt.Println(len("𐀄"))
-	fmt.Println()
-
-	for i := 0; i < len(s); {
-		r, l := runeAtByteInString(s, i)
-		if l == 0 {
-			i++
-			continue
-		}
-
-		fmt.Println(r)
-		fmt.Println(l)
-		fmt.Println()
-		i += l
-	}
-
-	use(ss)
-
-	fmt.Println(fuzzySearch("the fox jumps", "fox"))
+	s := "the fox jumps"
+	fsm := fuzzySearch(s, "fax")
+	ss := s[fsm.index : fsm.index+fsm.length]
+	fmt.Println(fsm, ss)
 }
 
 func use(...any) {
