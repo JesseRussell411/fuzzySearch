@@ -17,8 +17,35 @@ type FuzzySearchMatch struct {
 	byteCount           int
 }
 
+type FuzzySearchOptions struct {
+	minimumScore        float64
+	maximumEditDistance int
+}
+
+func fuzzySearchWithMaximumEditDistance(test, search string, maximumEditDistance int) FuzzySearchMatch {
+	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: 0.0, maximumEditDistance: maximumEditDistance})
+}
+func fuzzySearchWithMinimumScore(test, search string, minimumScore float64) FuzzySearchMatch {
+	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: minimumScore, maximumEditDistance: -1})
+}
 func fuzzySearch(test, search string) FuzzySearchMatch {
+	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: 0.0, maximumEditDistance: -1})
+}
+func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) FuzzySearchMatch {
 	searchLength := utf8.RuneCountInString(search)
+
+	minimumScore := 0.0
+	maximumEditDistance := math.MaxInt
+
+	minimumScore = max(0.0, min(1.0, options.minimumScore))
+	if options.maximumEditDistance >= 0 {
+		maximumEditDistance = options.maximumEditDistance
+	}
+
+	minimumMatchesForMinimumScore := math.Ceil(minimumScore * float64(searchLength))
+	maximumEditDistanceForMinimumScore := searchLength - int(minimumMatchesForMinimumScore)
+
+	appliedMaximumEditDistance := min(maximumEditDistance, maximumEditDistanceForMinimumScore)
 
 	// default values for empty string
 	minimumEditDistance := searchLength
@@ -87,7 +114,7 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 		wl := 1
 
 		// check if it's worth checking the windows position
-		if potentialEditDistanceForWI >= minimumEditDistance {
+		if potentialEditDistanceForWI >= minimumEditDistance || potentialEditDistanceForWI > appliedMaximumEditDistance {
 			// if not: skip to the next one
 			potentialEditDistanceForWI -= 2
 			goto nextWindowPosition // this is all the way down here because goto's can't jump over variable declarations
@@ -165,7 +192,7 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 
 			// clamp window size
 			potentialEditDist := editDist - (searchLength - wl)
-			if potentialEditDist > minimumEditDistance {
+			if potentialEditDist > minimumEditDistance || potentialEditDist > appliedMaximumEditDistance {
 				break
 			}
 
@@ -212,6 +239,15 @@ func fuzzySearch(test, search string) FuzzySearchMatch {
 	matchCount := searchLength - minimumEditDistance
 	score := float64(matchCount) / float64(searchLength)
 
+	if score < minimumScore || minimumEditDistance > appliedMaximumEditDistance {
+		// remove undefined behavior
+		result := FuzzySearchMatch{
+			minimumEditDistance: searchLength,
+		}
+
+		return result
+	}
+
 	result := FuzzySearchMatch{
 		minimumEditDistance: minimumEditDistance,
 		score:               score,
@@ -238,7 +274,11 @@ func main() {
 	for range 20 {
 		start := time.Now()
 
-		fsm := fuzzySearch(bigS, "what is a good phrase to put in my fuzzy search?")
+		fsm := fuzzySearchWithMinimumScore(
+			bigS,
+			"duff's device is a thing",
+			0.7,
+		)
 		stop := time.Now()
 		elapsed := float64(stop.Sub(start).Microseconds()) / 1000.0
 
