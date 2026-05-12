@@ -152,8 +152,8 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 					}
 				}
 
-				// searchRune := runeAtBytesInString(search, sb, searchRuneLength)
-				// testRune := runeAtBytesInString(test, tb, testRuneLength)
+				// searchRune, _ := runeAtByteInString(search, sb)
+				// testRune, _ := runeAtByteInString(test, tb)
 				// match := testRune == searchRune
 				//#endregion
 
@@ -271,12 +271,12 @@ func main() {
 	bigS := string(data)
 	println(bytesInRune_Utf8(bigS[3]))
 
-	search := "d𐀄uff's device is a thing"
+	search := "duff's device is a thing"
 	searchBytes := []byte(search)
 
 	searchBytes[1] = 0b1010_1010
 	// searchBytes[2] = 0b1010_1010
-	search = string(searchBytes)
+	// search = string(searchBytes)
 	println("search: ", search)
 
 	for range 20 {
@@ -285,7 +285,7 @@ func main() {
 		fsm := fuzzySearchWithMinimumScore(
 			bigS,
 			search,
-			0.1,
+			0.7,
 		)
 		stop := time.Now()
 		elapsed := float64(stop.Sub(start).Microseconds()) / 1000.0
@@ -327,28 +327,9 @@ func bytesInRune_Utf8(start byte) (count int, validStartingByte bool) {
 }
 
 func runeAtByteInString(s string, b int) (r rune, l int) {
-	l, _ = bytesInRune_Utf8(s[b])
-	bytes := make([]byte, l)
-
-	for i := range l {
-		bytes[i] = s[i+b]
-	}
-
-	r, l = utf8.DecodeRune(bytes)
-
+	subString := s[b:]
+	r, l = utf8.DecodeRuneInString(subString)
 	return
-}
-
-func runeAtBytesInString(s string, b int, l int) rune {
-	bytes := make([]byte, l)
-
-	for i := range l {
-		bytes[i] = s[i+b]
-	}
-
-	r, _ := utf8.DecodeRune(bytes)
-
-	return r
 }
 
 // import "strings"
