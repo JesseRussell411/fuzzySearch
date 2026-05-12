@@ -90,8 +90,7 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 	potentialEditDistanceForWI := 0
 	for {
 		// byte count of rune at start of window
-		windowRuneLength := bytesInRune(test[wb])
-		// TODO handle invalid runes
+		windowRuneLength, _ := bytesInRune_Utf8(test[wb])
 
 		// byte count of current rune in test
 		testRuneLength := windowRuneLength
@@ -116,7 +115,6 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 		// check if it's worth checking the windows position
 		if potentialEditDistanceForWI >= minimumEditDistance || potentialEditDistanceForWI > appliedMaximumEditDistance {
 			// if not: skip to the next one
-			potentialEditDistanceForWI -= 2
 			goto nextWindowPosition // this is all the way down here because goto's can't jump over variable declarations
 		}
 
@@ -137,12 +135,12 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			sb := 0
 			for {
 				// TODO? cache this in a lookup table?
-				searchRuneLength := bytesInRune(search[sb])
+				searchRuneLength, _ := bytesInRune_Utf8(search[sb])
 				c := si + 1
 
 				// instead of converting the bytes in search and test
 				// to runes, just check if the bytes match
-				//#region check bytes for match
+				// #region check bytes for match
 				match := searchRuneLength == testRuneLength
 
 				if match {
@@ -159,7 +157,6 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 				// match := testRune == searchRune
 				//#endregion
 
-				// TODO handle invalid runes
 				if match {
 					row[c] = prevRow[c-1]
 				} else {
@@ -200,8 +197,11 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			ti++
 			wl++
 
-			testRuneLength = bytesInRune(test[tb])
-			// TODO handle invalid runes
+			testRuneLength, _ = bytesInRune_Utf8(test[tb])
+			if testRuneLength == 0 {
+				// invalid rune
+				testRuneLength = 1
+			}
 		}
 		// reset rows
 		prevRow = seedRow
@@ -220,6 +220,7 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			break
 		}
 
+	nextWindowPosition:
 		// update potential edit distance for window position
 		if minimumEditDistanceFromWI == math.MaxInt {
 			potentialEditDistanceForWI -= 2
@@ -227,7 +228,6 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			potentialEditDistanceForWI = minimumEditDistanceFromWI - 2
 		}
 
-	nextWindowPosition:
 		wb += windowRuneLength
 		wi++
 
@@ -269,15 +269,22 @@ func main() {
 
 	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄 hello 𐀄" <-- for testing multi byte runes
 	bigS := string(data)
-	println(bytesInRune(bigS[3]))
+	println(bytesInRune_Utf8(bigS[3]))
+
+	search := "duff's device is a thing"
+	searchBytes := []byte(search)
+
+	searchBytes[1] = 0b1010_1010
+	search = string(searchBytes)
+	println("search: ", search)
 
 	for range 20 {
 		start := time.Now()
 
 		fsm := fuzzySearchWithMinimumScore(
 			bigS,
-			"duff's device is a thing",
-			0.7,
+			search,
+			0.1,
 		)
 		stop := time.Now()
 		elapsed := float64(stop.Sub(start).Microseconds()) / 1000.0
@@ -292,33 +299,34 @@ func main() {
 func use(...any) {
 }
 
-func bytesInRune(start byte) int {
+func bytesInRune_Utf8(start byte) (count int, validStartingByte bool) {
+	validStartingByte = true
 	if start&0b1000_0000 == 0 {
-		return 1
+		count = 1
 	} else if start&0b0100_0000 == 0 {
-		// 0 indicates that the given byte
-		// is not the starting byte
-		// of a utf8 character
-		return 0
+		validStartingByte = false
+		count = 1
 	} else if start&0b0010_0000 == 0 {
-		return 2
+		count = 2
 	} else if start&0b0001_0000 == 0 {
-		return 3
+		count = 3
 	} else if start&0b0000_1000 == 0 {
-		return 4
+		count = 4
 	} else if start&0b0000_0100 == 0 {
-		return 5
+		count = 5
 	} else if start&0b0000_0010 == 0 {
-		return 6
+		count = 6
 	} else if start&0b0000_0001 == 0 {
-		return 7
+		count = 7
 	} else {
-		return 8
+		count = 8
 	}
+
+	return
 }
 
 func runeAtByteInString(s string, b int) (r rune, l int) {
-	l = bytesInRune(s[b])
+	l, _ = bytesInRune_Utf8(s[b])
 	bytes := make([]byte, l)
 
 	for i := range l {

@@ -12,7 +12,7 @@ function main(){
 
     for (let i =0; i < 20; i++){
         start = performance.now();
-        const fsr = dfsr(bigS, fuzzySearch(bigS, "what is a good phrase to put in my fuzzy search?"));
+        const fsr = dfsr(bigS, fuzzySearch(bigS, "duff's device is a thing", {minimumScore: 2/3}));
 
         console.log(performance.now() - start);
         console.log(fsr);
