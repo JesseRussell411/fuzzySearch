@@ -169,7 +169,7 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 
 				si++
 				sb += searchRuneLength
-				if sb >= len(search) {
+				if sb >= len(search) || si >= searchLength {
 					break
 				}
 			}
@@ -267,14 +267,15 @@ func main() {
 		panic("couldn't read bigS: " + err.Error())
 	}
 
-	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄 hello 𐀄" <-- for testing multi byte runes
+	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄hello 𐀄" <-- for testing multi byte runes
 	bigS := string(data)
 	println(bytesInRune_Utf8(bigS[3]))
 
-	search := "duff's device is a thing"
+	search := "d𐀄uff's device is a thing"
 	searchBytes := []byte(search)
 
 	searchBytes[1] = 0b1010_1010
+	// searchBytes[2] = 0b1010_1010
 	search = string(searchBytes)
 	println("search: ", search)
 
