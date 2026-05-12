@@ -1,4 +1,5 @@
 import { genArr } from "./array";
+import { toCharArray, toCharCodeArray } from "./string";
 
 export type FuzzySearchMatch = {
     index: number,
@@ -10,6 +11,7 @@ export type FuzzySearchMatch = {
 let seedRow = genArr(8, i => i);
 let currentRow = genArr(8, 0);
 let nextCurrentRow = genArr(8, 0);
+let searchCharCodes = genArr(8, 0);
 
 export function fuzzySearch<
     MS extends (number | undefined) = undefined,
@@ -114,6 +116,15 @@ export function fuzzySearch<
     }
     let prevRow = seedRow
 
+    //#region cache char codes
+    if (searchCharCodes.length < search.length) {
+        searchCharCodes = genArr(search.length, 0);
+    }
+    for (let i = 0; i < search.length; i++) {
+        searchCharCodes[i] = search.charCodeAt(i);
+    }
+    //#endregion
+
     /** the best possible edit distance to find at the window's current position */
     let potentialEditDistanceForI = 0;
     substringIndex: for (let i = startingIndex; i < test.length; i++) {
@@ -148,6 +159,7 @@ export function fuzzySearch<
             const ti = i + l - 1;
             /** the current row in the matrix */
             const r = l;
+            const testCharCode = test.charCodeAt(ti);
 
 
             //     a b c d e f
@@ -160,6 +172,7 @@ export function fuzzySearch<
             //    `- populate the seed column
             currentRow[0] = r;
 
+            // if (Object.hasOwn(firstCharCache, testChar
             /** length of search string so far (the column of the matrix) */
             let sl = 1;
             for (;sl <= search.length; sl++) {
@@ -168,9 +181,8 @@ export function fuzzySearch<
                 /** the current column in the matrix */
                 const c = sl;
 
-                const searchChar = search.charAt(si);
-                const testChar = test.charAt(ti);
-                if (searchChar === testChar) {
+                const searchChar = searchCharCodes[si];
+                if (searchChar === testCharCode) {
                     currentRow[c] = prevRow[c - 1];
                 } else {
                     const north = prevRow[c];
