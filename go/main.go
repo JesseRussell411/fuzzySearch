@@ -22,6 +22,13 @@ type FuzzySearchOptions struct {
 	maximumEditDistance int
 }
 
+type rowCache struct {
+	row      []int
+	children map[rune]rowCache
+}
+
+var nilCache rowCache = rowCache{children: make(map[rune]rowCache)}
+
 func fuzzySearchWithMaximumEditDistance(test, search string, maximumEditDistance int) FuzzySearchMatch {
 	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: 0.0, maximumEditDistance: maximumEditDistance})
 }
@@ -36,6 +43,7 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 
 	minimumScore := 0.0
 	maximumEditDistance := math.MaxInt
+	cacheDepth := 2
 
 	minimumScore = max(0.0, min(1.0, options.minimumScore))
 	if options.maximumEditDistance >= 0 {
@@ -81,6 +89,7 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 	}
 
 	prevRow := seedRow
+	rootCache := rowCache{children: make(map[rune]rowCache)}
 
 	// window byte offset
 	wb := 0
@@ -112,6 +121,8 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 		// window length
 		wl := 1
 
+		prevCache := rootCache
+
 		// check if it's worth checking the windows position
 		if potentialEditDistanceForWI >= minimumEditDistance || potentialEditDistanceForWI > appliedMaximumEditDistance {
 			// if not: skip to the next one
@@ -123,62 +134,80 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			if wbc >= len(test)-wb {
 				break
 			}
+			testRune, _ := runeAtByteInString(test, tb)
 			// ED matrix row
 			r := wl
+			cache, cacheHit := prevCache.children[testRune]
 
-			// populate seed column
-			row[0] = r
+			editDist := 0
+			if cacheHit {
+				prevRow = cache.row
+				editDist = prevRow[searchLength]
+				prevCache = cache
+			} else {
+				// populate seed column
+				row[0] = r
 
-			// search rune offset
-			si := 0
-			// search byte offset
-			sb := 0
-			for {
-				searchRuneLength, _ := bytesInRune_Utf8(search[sb])
-				c := si + 1
+				// search rune offset
+				si := 0
+				// search byte offset
+				sb := 0
+				for {
+					searchRuneLength, _ := bytesInRune_Utf8(search[sb])
+					c := si + 1
 
-				// instead of converting the bytes in search and test
-				// to runes, just check if the bytes match
-				// #region check bytes for match
-				match := searchRuneLength == testRuneLength
+					// instead of converting the bytes in search and test
+					// to runes, just check if the bytes match
+					// #region check bytes for match
+					// match := searchRuneLength == testRuneLength
 
-				if match {
-					for rb := 0; rb < testRuneLength; rb++ {
-						match = search[sb+rb] == test[tb+rb]
-						if !match {
-							break
-						}
+					// if match {
+					// 	for rb := 0; rb < testRuneLength; rb++ {
+					// 		match = search[sb+rb] == test[tb+rb]
+					// 		if !match {
+					// 			break
+					// 		}
+					// 	}
+					// }
+
+					searchRune, _ := runeAtByteInString(search, sb)
+					match := testRune == searchRune
+					//#endregion
+
+					if match {
+						row[c] = prevRow[c-1]
+					} else {
+						north := prevRow[c]
+						northWest := prevRow[c-1]
+						west := row[c-1]
+
+						row[c] = 1 + min(north, northWest, west)
+					}
+
+					si++
+					sb += searchRuneLength
+					if sb >= len(search) || si >= searchLength {
+						break
 					}
 				}
 
-				// searchRune, _ := runeAtByteInString(search, sb)
-				// testRune, _ := runeAtByteInString(test, tb)
-				// match := testRune == searchRune
-				//#endregion
-
-				if match {
-					row[c] = prevRow[c-1]
+				// populate cache
+				if r <= cacheDepth {
+					cacheRow := make([]int, len(row))
+					copy(cacheRow, row)
+					cache = rowCache{row: cacheRow, children: make(map[rune]rowCache)}
+					prevCache.children[testRune] = cache
+					prevCache = cache
 				} else {
-					north := prevRow[c]
-					northWest := prevRow[c-1]
-					west := row[c-1]
-
-					row[c] = 1 + min(north, northWest, west)
+					prevCache = nilCache
 				}
-
-				si++
-				sb += searchRuneLength
-				if sb >= len(search) || si >= searchLength {
-					break
-				}
+				editDist = row[searchLength]
+				// rotate rows
+				prevRow = row
+				temp := row
+				row = nextRow
+				nextRow = temp
 			}
-
-			editDist := row[searchLength]
-			// rotate rows
-			prevRow = row
-			temp := row
-			row = nextRow
-			nextRow = temp
 
 			if editDist <= minimumEditDistanceFromWI {
 				minimumEditDistanceFromWI = editDist
