@@ -139,10 +139,8 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			r := wl
 			cache, cacheHit := prevCache.children[testRune]
 
-			editDist := 0
 			if cacheHit {
 				prevRow = cache.row
-				editDist = prevRow[searchLength]
 				prevCache = cache
 			} else {
 				// populate seed column
@@ -201,13 +199,14 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 				} else {
 					prevCache = nilCache
 				}
-				editDist = row[searchLength]
 				// rotate rows
 				prevRow = row
 				temp := row
 				row = nextRow
 				nextRow = temp
 			}
+
+			editDist := prevRow[searchLength]
 
 			if editDist <= minimumEditDistanceFromWI {
 				minimumEditDistanceFromWI = editDist
