@@ -330,22 +330,16 @@ func bytesInRune_Utf8(start byte) (count int, validStartingByte bool) {
 	} else if start&0b0100_0000 == 0 {
 		validStartingByte = false
 		count = 1
-	} else if start&0b0010_0000 == 0 {
-		count = 2
-	} else if start&0b0001_0000 == 0 {
-		count = 3
-	} else if start&0b0000_1000 == 0 {
-		count = 4
-	} else if start&0b0000_0100 == 0 {
-		count = 5
-	} else if start&0b0000_0010 == 0 {
-		count = 6
-	} else if start&0b0000_0001 == 0 {
-		count = 7
 	} else {
+		for i := 2; i < 8; i++ {
+			mask := byte(0b1000_0000) >> i
+			if start&mask == 0 {
+				count = i
+				return
+			}
+		}
 		count = 8
 	}
-
 	return
 }
 
