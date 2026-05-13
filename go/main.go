@@ -43,7 +43,7 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 
 	minimumScore := 0.0
 	maximumEditDistance := math.MaxInt
-	cacheDepth := 2
+	cacheDepth := 3
 
 	minimumScore = max(0.0, min(1.0, options.minimumScore))
 	if options.maximumEditDistance >= 0 {
@@ -159,19 +159,19 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 					// instead of converting the bytes in search and test
 					// to runes, just check if the bytes match
 					// #region check bytes for match
-					// match := searchRuneLength == testRuneLength
+					match := searchRuneLength == testRuneLength
 
-					// if match {
-					// 	for rb := 0; rb < testRuneLength; rb++ {
-					// 		match = search[sb+rb] == test[tb+rb]
-					// 		if !match {
-					// 			break
-					// 		}
-					// 	}
-					// }
+					if match {
+						for rb := 0; rb < testRuneLength; rb++ {
+							match = search[sb+rb] == test[tb+rb]
+							if !match {
+								break
+							}
+						}
+					}
 
-					searchRune, _ := runeAtByteInString(search, sb)
-					match := testRune == searchRune
+					// searchRune, _ := runeAtByteInString(search, sb)
+					// match := testRune == searchRune
 					//#endregion
 
 					if match {
