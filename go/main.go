@@ -134,7 +134,6 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			// search byte offset
 			sb := 0
 			for {
-				// TODO? cache this in a lookup table?
 				searchRuneLength, _ := bytesInRune_Utf8(search[sb])
 				c := si + 1
 
@@ -198,10 +197,6 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 			wl++
 
 			testRuneLength, _ = bytesInRune_Utf8(test[tb])
-			if testRuneLength == 0 {
-				// invalid rune
-				testRuneLength = 1
-			}
 		}
 		// reset rows
 		prevRow = seedRow
