@@ -27,7 +27,6 @@ function main(){
 
 /** mostly a bunch of wikipedia articles */
 export let bigS = `
-
 WikipediaThe Free Encyclopedia
 
 Donate
