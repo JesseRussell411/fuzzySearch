@@ -6,6 +6,7 @@ import (
 	"os"
 	"time"
 	"unicode/utf8"
+	"unsafe"
 )
 
 type FuzzySearchMatch struct {
@@ -161,6 +162,9 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 
 					if match {
 						for rb := 0; rb < testRuneLength; rb++ {
+							// searchByte := unsafeBoundlessStringGet(search, uintptr(sb+rb))
+							// testByte := unsafeBoundlessStringGet(test, uintptr(tb+rb))
+							// match = searchByte == testByte
 							match = search[sb+rb] == test[tb+rb]
 							if !match {
 								break
@@ -173,13 +177,21 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 					//#endregion
 
 					if match {
-						row[c] = prevRow[c-1]
+						// row[c] = prevRow[c-1]
+						editDist := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
+						unsafeBoundlessSliceSet_int(row, uintptr(c), editDist)
 					} else {
-						north := prevRow[c]
-						northWest := prevRow[c-1]
-						west := row[c-1]
+						// north := prevRow[c]
+						// northWest := prevRow[c-1]
+						// west := row[c-1]
 
-						row[c] = 1 + min(north, northWest, west)
+						// row[c] = 1 + min(north, northWest, west)
+
+						north := unsafeBoundlessSliceGet_int(prevRow, uintptr(c))
+						northWest := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
+						west := unsafeBoundlessSliceGet_int(row, uintptr(c-1))
+
+						unsafeBoundlessSliceSet_int(row, uintptr(c), 1+min(north, northWest, west))
 					}
 
 					si++
@@ -206,7 +218,8 @@ func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) Fuz
 				nextRow = temp
 			}
 
-			editDist := prevRow[searchLength]
+			// editDist := prevRow[searchLength]
+			editDist := unsafeBoundlessSliceGet_int(prevRow, uintptr(searchLength))
 
 			if editDist <= minimumEditDistanceFromWI {
 				minimumEditDistanceFromWI = editDist
@@ -290,6 +303,12 @@ func main() {
 		panic("couldn't read bigS: " + err.Error())
 	}
 
+	slice := []int{1, 2, 3}
+
+	println("slice item:", unsafeBoundlessSliceGet_int(slice, 1))
+	unsafeBoundlessSliceSet_int(slice, 1, 20)
+	println("slice item now:", unsafeBoundlessSliceGet_int(slice, 1))
+
 	// bigS := "oh 𐀄 shit𐀄s this guy 𐀄hello 𐀄" <-- for testing multi byte runes
 	bigS := string(data)
 	println(bytesInRune_Utf8(bigS[3]))
@@ -347,6 +366,29 @@ func runeAtByteInString(s string, b int) (r rune, l int) {
 	subString := s[b:]
 	r, l = utf8.DecodeRuneInString(subString)
 	return
+}
+
+func unsafeBoundlessSliceGet_int(slc []int, i uintptr) int {
+	start := uintptr(unsafe.Pointer(&slc[0]))
+	target := start + unsafe.Sizeof(int(0))*i
+	targetPointer := unsafe.Pointer(target)
+	targetValue := *(*int)(targetPointer)
+	return targetValue
+}
+
+func unsafeBoundlessSliceSet_int(slc []int, i uintptr, value int) {
+	start := uintptr(unsafe.Pointer(&slc[0]))
+	target := start + unsafe.Sizeof(int(0))*i
+	targetPointer := unsafe.Pointer(target)
+	*(*int)(targetPointer) = value
+}
+
+func unsafeBoundlessStringGet(str string, i uintptr) byte {
+	data := unsafe.StringData(str)
+	target := uintptr(unsafe.Pointer(data)) + i
+	targetPointer := unsafe.Pointer(target)
+	targetValue := *(*byte)(targetPointer)
+	return targetValue
 }
 
 // import "strings"
