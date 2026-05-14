@@ -18,19 +18,26 @@ type FuzzySearchMatch struct {
 	byteCount           int
 }
 
-type FuzzySearchBuilder struct {
+type FuzzySearchParams struct {
 	testString          string
 	searchString        string
 	minimumScore        float64
 	maximumEditDistance int
 	cacheDepth          int
+	takeProgress        func(FuzzySearchProgress) bool
+}
+
+type FuzzySearchProgress struct {
+	byteOffset int
+	runeOffset int
+	bestMatch  FuzzySearchMatch
 }
 
 func FuzzySearch(test, search string) FuzzySearchMatch {
 	return FuzzySearchWith(test, search).Run()
 }
-func FuzzySearchWith(test, search string) FuzzySearchBuilder {
-	return FuzzySearchBuilder{
+func FuzzySearchWith(test, search string) FuzzySearchParams {
+	return FuzzySearchParams{
 		testString:          test,
 		searchString:        search,
 		minimumScore:        0.0,
@@ -39,23 +46,28 @@ func FuzzySearchWith(test, search string) FuzzySearchBuilder {
 	}
 }
 
-func (self FuzzySearchBuilder) Run() FuzzySearchMatch {
+func (self FuzzySearchParams) Run() FuzzySearchMatch {
 	result := fuzzySearchFromBuilder(self)
 	return result
 }
 
-func (self FuzzySearchBuilder) MinScore(value float64) FuzzySearchBuilder {
+func (self FuzzySearchParams) MinScore(value float64) FuzzySearchParams {
 	self.minimumScore = value
 	return self
 }
 
-func (self FuzzySearchBuilder) MaxEditDistance(value int) FuzzySearchBuilder {
+func (self FuzzySearchParams) MaxEditDistance(value int) FuzzySearchParams {
 	self.maximumEditDistance = value
 	return self
 }
 
-func (self FuzzySearchBuilder) CacheDepth(value int) FuzzySearchBuilder {
+func (self FuzzySearchParams) CacheDepth(value int) FuzzySearchParams {
 	self.cacheDepth = value
+	return self
+}
+
+func (self FuzzySearchParams) TakeProgress(value func(FuzzySearchProgress) bool) FuzzySearchParams {
+	self.takeProgress = value
 	return self
 }
 
@@ -66,15 +78,22 @@ type rowCache struct {
 
 var nilCache rowCache = rowCache{children: make(map[rune]rowCache)}
 
-func fuzzySearchFromBuilder(builder FuzzySearchBuilder) FuzzySearchMatch {
+func calcScore(editDistance, searchLength int) float64 {
+	matchCount := searchLength - editDistance
+	score := float64(matchCount) / float64(searchLength)
+	return score
+}
+
+func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	//#region take options
-	test := builder.testString
-	search := builder.searchString
+	test := params.testString
+	search := params.searchString
 	minimumScore := 0.0
 	maximumEditDistance := math.MaxInt
-	cacheDepth := builder.cacheDepth
-	minimumScore = max(0.0, min(1.0, builder.minimumScore))
-	maximumEditDistance = max(0, builder.maximumEditDistance)
+	cacheDepth := params.cacheDepth
+	minimumScore = max(0.0, min(1.0, params.minimumScore))
+	maximumEditDistance = max(0, params.maximumEditDistance)
+	takeProgress := params.takeProgress
 	//#endregion
 
 	searchLength := utf8.RuneCountInString(search)
@@ -284,6 +303,36 @@ func fuzzySearchFromBuilder(builder FuzzySearchBuilder) FuzzySearchMatch {
 			break
 		}
 
+		//#region progress report
+		if takeProgress != nil {
+			bestMatch := FuzzySearchMatch{minimumEditDistance: searchLength}
+
+			if minimumEditDistance <= maximumEditDistance {
+				score := calcScore(minimumEditDistance, searchLength)
+				if score >= minimumScore {
+					bestMatch.minimumEditDistance = minimumEditDistance
+					bestMatch.score = score
+
+					bestMatch.byteCount = byteCount
+					bestMatch.byteOffset = byteOffset
+					bestMatch.runeCount = runeCount
+					bestMatch.runeOffset = runeOffset
+				}
+			}
+
+			progress := FuzzySearchProgress{
+				byteOffset: wb,
+				runeOffset: wi,
+				bestMatch:  bestMatch,
+			}
+
+			stop := takeProgress(progress)
+			if stop {
+				break
+			}
+		}
+		//#endregion
+
 	nextWindowPosition:
 		// update potential edit distance for window position
 		if minimumEditDistanceFromWI == math.MaxInt {
@@ -300,8 +349,7 @@ func fuzzySearchFromBuilder(builder FuzzySearchBuilder) FuzzySearchMatch {
 		}
 	}
 
-	matchCount := searchLength - minimumEditDistance
-	score := float64(matchCount) / float64(searchLength)
+	score := calcScore(minimumEditDistance, searchLength)
 
 	if score < minimumScore || minimumEditDistance > appliedMaximumEditDistance {
 		// remove undefined behavior
