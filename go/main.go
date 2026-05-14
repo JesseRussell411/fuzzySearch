@@ -18,9 +18,45 @@ type FuzzySearchMatch struct {
 	byteCount           int
 }
 
-type FuzzySearchOptions struct {
+type FuzzySearchBuilder struct {
+	testString          string
+	searchString        string
 	minimumScore        float64
 	maximumEditDistance int
+	cacheDepth          int
+}
+
+func FuzzySearch(test, search string) FuzzySearchMatch {
+	return FuzzySearchWith(test, search).Run()
+}
+func FuzzySearchWith(test, search string) FuzzySearchBuilder {
+	return FuzzySearchBuilder{
+		testString:          test,
+		searchString:        search,
+		minimumScore:        0.0,
+		maximumEditDistance: math.MaxInt,
+		cacheDepth:          2,
+	}
+}
+
+func (self FuzzySearchBuilder) Run() FuzzySearchMatch {
+	result := fuzzySearchFromBuilder(self)
+	return result
+}
+
+func (self FuzzySearchBuilder) MinScore(value float64) FuzzySearchBuilder {
+	self.minimumScore = value
+	return self
+}
+
+func (self FuzzySearchBuilder) MaxEditDistance(value int) FuzzySearchBuilder {
+	self.maximumEditDistance = value
+	return self
+}
+
+func (self FuzzySearchBuilder) CacheDepth(value int) FuzzySearchBuilder {
+	self.cacheDepth = value
+	return self
 }
 
 type rowCache struct {
@@ -30,26 +66,18 @@ type rowCache struct {
 
 var nilCache rowCache = rowCache{children: make(map[rune]rowCache)}
 
-func fuzzySearchWithMaximumEditDistance(test, search string, maximumEditDistance int) FuzzySearchMatch {
-	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: 0.0, maximumEditDistance: maximumEditDistance})
-}
-func fuzzySearchWithMinimumScore(test, search string, minimumScore float64) FuzzySearchMatch {
-	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: minimumScore, maximumEditDistance: -1})
-}
-func fuzzySearch(test, search string) FuzzySearchMatch {
-	return fuzzySearchWithOptions(test, search, FuzzySearchOptions{minimumScore: 0.0, maximumEditDistance: -1})
-}
-func fuzzySearchWithOptions(test, search string, options FuzzySearchOptions) FuzzySearchMatch {
-	searchLength := utf8.RuneCountInString(search)
-
+func fuzzySearchFromBuilder(builder FuzzySearchBuilder) FuzzySearchMatch {
+	//#region take options
+	test := builder.testString
+	search := builder.searchString
 	minimumScore := 0.0
 	maximumEditDistance := math.MaxInt
-	cacheDepth := 3
+	cacheDepth := builder.cacheDepth
+	minimumScore = max(0.0, min(1.0, builder.minimumScore))
+	maximumEditDistance = max(0, builder.maximumEditDistance)
+	//#endregion
 
-	minimumScore = max(0.0, min(1.0, options.minimumScore))
-	if options.maximumEditDistance >= 0 {
-		maximumEditDistance = options.maximumEditDistance
-	}
+	searchLength := utf8.RuneCountInString(search)
 
 	minimumMatchesForMinimumScore := math.Ceil(minimumScore * float64(searchLength))
 	maximumEditDistanceForMinimumScore := searchLength - int(minimumMatchesForMinimumScore)
@@ -324,11 +352,10 @@ func main() {
 	for range 20 {
 		start := time.Now()
 
-		fsm := fuzzySearchWithMinimumScore(
+		fsm := FuzzySearchWith(
 			bigS,
 			search,
-			0.7,
-		)
+		).CacheDepth(2).MinScore(0.7).Run()
 		stop := time.Now()
 		elapsed := float64(stop.Sub(start).Microseconds()) / 1000.0
 
