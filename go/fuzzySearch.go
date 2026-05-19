@@ -224,23 +224,18 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 					// searchRune, _ := runeAtByteInString(search, sb)
 					// match := testRune == searchRune
 					//#endregion
+					editDistMatched := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
 
+					north := unsafeBoundlessSliceGet_int(prevRow, uintptr(c))
+					northWest := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
+					west := unsafeBoundlessSliceGet_int(row, uintptr(c-1))
+					editDistUnMatched := 1 + min(north, northWest, west)
+
+					// condition at the end slightly faster
 					if match {
-						// row[c] = prevRow[c-1]
-						editDist := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
-						unsafeBoundlessSliceSet_int(row, uintptr(c), editDist)
+						unsafeBoundlessSliceSet_int(row, uintptr(c), editDistMatched)
 					} else {
-						// north := prevRow[c]
-						// northWest := prevRow[c-1]
-						// west := row[c-1]
-
-						// row[c] = 1 + min(north, northWest, west)
-
-						north := unsafeBoundlessSliceGet_int(prevRow, uintptr(c))
-						northWest := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
-						west := unsafeBoundlessSliceGet_int(row, uintptr(c-1))
-
-						unsafeBoundlessSliceSet_int(row, uintptr(c), 1+min(north, northWest, west))
+						unsafeBoundlessSliceSet_int(row, uintptr(c), editDistUnMatched)
 					}
 
 					si++
