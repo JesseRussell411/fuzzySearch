@@ -4,7 +4,7 @@ import (
 	"unicode/utf8"
 )
 
-func bytesInRune_Utf8(start byte) (count int, validStartingByte bool) {
+func bytesInRune_utf8(start byte) (count int, validStartingByte bool) {
 	// _, result := utf8.DecodeRune([]byte{start, 0b1000_0000, 0b1000_0000, 0b1000_0000})
 	// count = result
 	// validStartingByte = true
@@ -28,6 +28,17 @@ func bytesInRune_Utf8(start byte) (count int, validStartingByte bool) {
 		validStartingByte = false
 	}
 	return
+}
+
+func BytesInRune_utf8(start byte) int {
+	byteCount, _ := bytesInRune_utf8(start)
+	return byteCount
+}
+
+func IsValidStartingByte_utf8(b byte) bool {
+	_, valid := bytesInRune_utf8(b)
+	return valid
+
 }
 
 func runeAtByteInString(s string, b int) (r rune, l int) {

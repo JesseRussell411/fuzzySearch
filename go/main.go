@@ -39,20 +39,22 @@ func main() {
 		}
 		println()
 
-		loadingBarChunkSize := len(bigS) / loadingBarLen
-		lastLoadingBarPrintSize := 0
+		// loadingBarChunkSize := len(bigS) / loadingBarLen
+		// lastLoadingBarPrintSize := 0
 
-		fsm := FuzzySearchWith(
-			bigS,
-			search,
-		).CacheDepth(2).MinScore(0.0).TakeProgress(func(progress FuzzySearchProgress) bool {
-			if progress.byteOffset-lastLoadingBarPrintSize >= loadingBarChunkSize {
-				print("=")
-				lastLoadingBarPrintSize = progress.runeOffset
-			}
+		// fsm := FuzzySearchWith(
+		// 	bigS,
+		// 	search,
+		// ).CacheDepth(2).MinScore(0.0).TakeProgress(func(progress FuzzySearchProgress) bool {
+		// 	if progress.byteOffset-lastLoadingBarPrintSize >= loadingBarChunkSize {
+		// 		print("=")
+		// 		lastLoadingBarPrintSize = progress.runeOffset
+		// 	}
 
-			return false
-		}).Run()
+		// 	return false
+		// }).Run()
+		fsm := multiThreadedFuzzySearch(bigS, search)
+
 		println()
 
 		stop := time.Now()

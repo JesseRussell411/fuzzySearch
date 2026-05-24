@@ -15,6 +15,23 @@ type FuzzySearchMatch struct {
 	byteCount           int
 }
 
+func EmptyFuzzySearchMatch(search string) FuzzySearchMatch {
+	searchLen := utf8.RuneCountInString(search)
+	score := 0.0
+	minimumEditDistance := searchLen
+	if searchLen > 0 {
+		score = 1.0
+	}
+	return FuzzySearchMatch{
+		minimumEditDistance: minimumEditDistance,
+		score:               score,
+		runeOffset:          0,
+		byteOffset:          0,
+		runeCount:           0,
+		byteCount:           0,
+	}
+}
+
 type FuzzySearchParams struct {
 	testString          string
 	searchString        string
@@ -69,12 +86,21 @@ func (self FuzzySearchParams) TakeProgress(value func(FuzzySearchProgress) bool)
 	return self
 }
 
+func (self FuzzySearchParams) setRootCache(value *rowCache) FuzzySearchParams {
+	self.rootCache = value
+	return self
+}
+
 type rowCache struct {
 	row      []int
 	children sync.Map
 }
 
 var nilCache *rowCache = &rowCache{}
+
+func newRowCache() *rowCache {
+	return &rowCache{}
+}
 
 func calcScore(editDistance, searchLength int) float64 {
 	matchCount := searchLength - editDistance
@@ -94,7 +120,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	takeProgress := params.takeProgress
 	rootCache := params.rootCache
 	if rootCache == nil {
-		rootCache = &rowCache{}
+		rootCache = newRowCache()
 	}
 	//#endregion
 
@@ -148,7 +174,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	potentialEditDistanceForWI := 0
 	for {
 		// byte count of rune at start of window
-		windowRuneLength, _ := bytesInRune_Utf8(test[wb])
+		windowRuneLength, _ := bytesInRune_utf8(test[wb])
 
 		// byte count of current rune in test
 		testRuneLength := windowRuneLength
@@ -201,7 +227,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 				// search byte offset
 				sb := 0
 				for {
-					searchRuneLength, _ := bytesInRune_Utf8(search[sb])
+					searchRuneLength, _ := bytesInRune_utf8(search[sb])
 					c := si + 1
 
 					// instead of converting the bytes in search and test
@@ -282,7 +308,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			ti++
 			wl++
 
-			testRuneLength, _ = bytesInRune_Utf8(test[tb])
+			testRuneLength, _ = bytesInRune_utf8(test[tb])
 		}
 		// reset rows
 		prevRow = seedRow
