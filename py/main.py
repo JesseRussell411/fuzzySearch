@@ -95,9 +95,7 @@ def fuzzySearch(test: str, search: str) -> FuzzySearchResult:
             currentRow = nextCurrentRow
             nextCurrentRow = temp
 
-            potentialEditDist = editDist - (
-                len(search) - 1
-            )
+            potentialEditDist = l - len(search) + 1
 
             # clamp window size
             if potentialEditDist > minimumEditDistance:

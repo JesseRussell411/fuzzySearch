@@ -41,8 +41,53 @@ func IsValidStartingByte_utf8(b byte) bool {
 
 }
 
+func subString_utf8(str string, start, length int) (substring string, actualStart int) {
+	for !IsValidStartingByte_utf8(str[start]) && start > 0 {
+		start--
+	}
+
+	if start+length < len(str) {
+		for !IsValidStartingByte_utf8(str[start+length]) && length > 0 {
+			length--
+		}
+	}
+
+	substring = str[start : start+length]
+	actualStart = start
+	return
+}
+
+func breakIntoSubstrings_utf8(str string, count int) []string {
+	length := len(str) / count
+	remainder := len(str) % count
+	totalLength := 0
+	result := make([]string, count)
+
+	for i := range count {
+		subLength := length
+		if i < remainder {
+			subLength += 1
+		}
+
+		subString, actualStart := subString_utf8(str, totalLength, subLength)
+
+		actualLength := len(subString)
+		arctualStartOffset := actualStart - totalLength
+
+		totalLength += actualLength - arctualStartOffset
+
+		result[i] = subString
+	}
+
+	return result
+}
+
 func runeAtByteInString(s string, b int) (r rune, l int) {
 	subString := s[b:]
 	r, l = utf8.DecodeRuneInString(subString)
 	return
+}
+
+func IsTrailingByte(b byte) bool {
+	return b&0b1100_0000 == 0b1000_0000
 }

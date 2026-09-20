@@ -39,7 +39,11 @@ type FuzzySearchParams struct {
 	maximumEditDistance int
 	cacheDepth          int
 	takeProgress        func(FuzzySearchProgress) bool
+	takeTestRuneCount   func(int)
 	rootCache           *rowCache
+	byteCount           int
+	threadCount         int
+	searchLength        int
 }
 
 type FuzzySearchProgress struct {
@@ -86,7 +90,22 @@ func (self FuzzySearchParams) TakeProgress(value func(FuzzySearchProgress) bool)
 	return self
 }
 
-func (self FuzzySearchParams) setRootCache(value *rowCache) FuzzySearchParams {
+func (self FuzzySearchParams) TakeTestRuneCount(value func(int)) FuzzySearchParams {
+	self.takeTestRuneCount = value
+	return self
+}
+
+func (self FuzzySearchParams) ThreadCount(value int) FuzzySearchParams {
+	self.threadCount = value
+	return self
+}
+
+func (self FuzzySearchParams) priv_SearchLength(value int) FuzzySearchParams {
+	self.searchLength = value
+	return self
+}
+
+func (self FuzzySearchParams) priv_RootCache(value *rowCache) FuzzySearchParams {
 	self.rootCache = value
 	return self
 }
@@ -119,12 +138,17 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	maximumEditDistance = max(0, params.maximumEditDistance)
 	takeProgress := params.takeProgress
 	rootCache := params.rootCache
+	takeTestRuneCount := params.takeTestRuneCount
 	if rootCache == nil {
 		rootCache = newRowCache()
 	}
+	threadCount := params.threadCount
+	searchLength := params.searchLength
 	//#endregion
 
-	searchLength := utf8.RuneCountInString(search)
+	if searchLength <= 0 {
+		searchLength = utf8.RuneCountInString(search)
+	}
 
 	minimumMatchesForMinimumScore := math.Ceil(minimumScore * float64(searchLength))
 	maximumEditDistanceForMinimumScore := searchLength - int(minimumMatchesForMinimumScore)
@@ -146,6 +170,11 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			score = 0.0
 		}
 
+		if takeTestRuneCount != nil {
+			testRuneCount := utf8.RuneCountInString(test)
+			takeTestRuneCount(testRuneCount)
+		}
+
 		return FuzzySearchMatch{
 			minimumEditDistance: minimumEditDistance,
 			score:               score,
@@ -155,6 +184,43 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			byteCount:           byteCount,
 		}
 	}
+
+	//#region multi-threading
+	if threadCount > 1 {
+		substrings := breakIntoSubstrings_utf8(test, threadCount)
+		resultChannels := make([]chan FuzzySearchMatch, threadCount)
+		runeCounts := make([]int, threadCount)
+
+		for i, substring := range substrings {
+			c := gorun(
+				FuzzySearchWith(substring, search).
+					ThreadCount(0).
+					priv_SearchLength(searchLength).
+					TakeTestRuneCount(func(c int) { runeCounts[i] = c }).
+					Run,
+			)
+			resultChannels[i] = c
+		}
+
+		result := FuzzySearchMatch{
+			minimumEditDistance: searchLength,
+		}
+
+		byteOffset := 0
+		runeOffset := 0
+		for i, c := range resultChannels {
+			subResult := <-c
+			if subResult.minimumEditDistance < result.minimumEditDistance {
+				subResult.byteOffset += byteOffset
+				subResult.runeOffset += runeOffset
+				result = subResult
+			}
+
+			byteOffset += len(substrings[i])
+			runeOffset += runeCounts[i]
+		}
+	}
+	//#endregion
 
 	columnCount := searchLength + 1
 	seedRow := make([]int, columnCount)
@@ -299,7 +365,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			}
 
 			// clamp window size
-			potentialEditDist := editDist - (searchLength - wl)
+			potentialEditDist := wl - searchLength + 1
 			if potentialEditDist > minimumEditDistance || potentialEditDist > appliedMaximumEditDistance {
 				break
 			}
@@ -371,6 +437,11 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 		if wb >= len(test) {
 			break
 		}
+	}
+
+	if takeTestRuneCount != nil {
+		testRuneCount := wi - 1 + utf8.RuneCountInString(test[wb:])
+		takeTestRuneCount(testRuneCount)
 	}
 
 	score := calcScore(minimumEditDistance, searchLength)

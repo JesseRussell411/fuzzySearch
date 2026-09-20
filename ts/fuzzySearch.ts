@@ -209,7 +209,7 @@ export function fuzzySearch<
 
             // clamp window size
             /** The best potential edit distance to be found by continuing this loop */
-            const potentialEditDist = editDist - (search.length - l);
+            const potentialEditDist = l - search.length + 1;
             if (
                 potentialEditDist > minimumEditDistance
                 || potentialEditDist > appliedMaximumEditDistance
