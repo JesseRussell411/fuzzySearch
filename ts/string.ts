@@ -1,15 +1,15 @@
 export function toCharArray(s: string): string[] {
-    const result = new Array<string>(s.length);
+    const result = [];
     for (let i = 0; i < result.length; i++) {
-        result[i] = s.charAt(i);
+        result.push(s.charAt(i));
     }
     return result;
 }
 
 export function toCharCodeArray(s: string): number[] {
-    const result = new Array<number>(s.length);
+    const result = [];
     for (let i = 0; i < result.length; i++) {
-        result[i] = s.charCodeAt(i);
+        result.push(s.charCodeAt(i));
     }
     return result;
 }

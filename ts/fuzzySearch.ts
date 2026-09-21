@@ -1,4 +1,4 @@
-import { genArr } from "./array";
+import { genArr, extendArr } from "./array";
 import { toCharArray, toCharCodeArray } from "./string";
 
 export type FuzzySearchMatch = {
@@ -75,51 +75,57 @@ export function fuzzySearch<
     }
     // /!\ at this point it's assumed search and test both contain at least 1 character /!\
 
-    if (search.length - test.length > appliedMaximumEditDistance){
+    // if search is longer than test, the min edit distance between them will be equal to the difference in length.
+    if (search.length - test.length > appliedMaximumEditDistance) {
+        // in this case, that difference is so great that the min edit distance can't possibly be smaller than the max edit dist, so a match won't be found
         return undefined as Return;
     }
 
-    // indexOf is 2 orders of magnitude faster than this function
-    // this means it can check for a perfect match ahead of time
-    // and if it's a perfect match, then fuzzy searching won't find anything better
-    // so short circuit and return here
-    const indexOf_index = test.indexOf(search);
-    if (indexOf_index >= 0) {
+    // if search equals test, obviously test, itself, would be the best match, with an edit dist of 0
+    if (search === test) {
         return {
-            index: indexOf_index,
+            index: 0,
             length: search.length,
             minimumEditDistance: 0,
             score: 1
         }
-    } else if (appliedMaximumEditDistance === 0) {
-        return undefined as Return;
     }
 
-    // /!\ at this point it's known that the lowest edit distance to be found is 1 /!\
     //#endregion
 
-    //     a b c d e f <- search string
+    // hopefully this diagram will help explain what's happening
+    // the goal is to calculate the levenshtein distance between search and multiple lengths of the substring at the current index in test
+    //
+    //     a b c d e f <--search string
     //  [0 1 2 3 4 5 6] <- seedRow (and initial prevRow)
-    // a 1 0 1 2 3 4 5
-    // z[2 1 1 2 3 4 5] <- prevRow
-    // c[3 2 2 1 2 3 4] <- currentRow
-    // f 4 3 3 2 2 3(3) <- minimum edit distance for length of substring so far
-    // g 5 4 4 3 3 3(4) <- minimum edit distance for length of substring so far
-    // g 6 5 5 4 4 4(4) <- minimum edit distance for length of substring so far
+    // a 1 0 1 2 3 4(5) <- - - - - - - - - - - -levenshtein distance between "abcdef" and "a"
+    // z 2 1 1 2 3 4(5) <- - - - - - - - - - - -levenshtein distance between "abcdef" and "az"
+    // c 3 2 2 1 2 3(4) <- - - - - - - - - - - -levenshtein distance between "abcdef" and "azc"
+    // f[4 3 3 2 2 3(3)]<- prevRow - "(3)"<- - -levenshtein distance between "abcdef" and "azcf"
+    // g[5 4 4 3 3 3(4)]<- currentRow - "(4)"<--levenshtein distance between "abcdef" and "azcfg"
     // ^
     //  ` - substring of test
+    //
+    // note that the table in this diagram is the same table produced to calculate the levenshtein distance (edit distance) between "abcdef" and "azcfd"
+    // but a serendipitous trait of this table is that in order to calculate the edit distance between these two strings, the edit distance between each sub-length string is also calculated
+    // the edit distance between "abcdef" and "a" is found first, then that row in the table is used to calculate the edit distance between "abcdef and "az", then that row is used to calculate the next
+    // etc.
+    //
+
+
+    /** How many columns the table has. */
     const columnCount = search.length + 1;
+
     if (seedRow.length < columnCount) {
-        seedRow = genArr(columnCount, i => i);
-        currentRow = genArr(columnCount, 0);
-        nextCurrentRow = genArr(columnCount, 0);
+        extendArr(seedRow,         columnCount, i => i);
+        extendArr(currentRow,      columnCount, 0);
+        extendArr(nextCurrentRow,  columnCount, 0);
     }
+
+    /** The previous row */
     let prevRow = seedRow
 
     //#region cache char codes
-    if (searchCharCodes.length < search.length) {
-        searchCharCodes = genArr(search.length, 0);
-    }
     for (let i = 0; i < search.length; i++) {
         searchCharCodes[i] = search.charCodeAt(i);
     }

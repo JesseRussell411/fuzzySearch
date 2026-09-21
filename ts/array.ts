@@ -1,6 +1,11 @@
 import { requireGreaterThanZero, requireNonNegative, requireSafeInteger } from "./checks";
 
-export function fillArr<T = undefined>(arr: T[], from: number, to: number, contents: T | ((index: number) => T)) {
+export function fillArr<T = undefined>(
+    arr: T[],
+    from: number,
+    to: number,
+    contents: T | ((index: number) => T)
+) {
     for (let i = from; i < to; i++) {
         if (contents instanceof Function) {
             arr[i] = contents(i);
@@ -9,10 +14,34 @@ export function fillArr<T = undefined>(arr: T[], from: number, to: number, conte
         }
     }
 }
-export function genArr<T = undefined>(length: number, contents?: T | ((index: number) => T)): T[]{
-    const result = new Array(length);
-    fillArr(result, 0, length, contents);
+
+export function genArr<T = undefined>(
+    length: number,
+    contents?: T | ((index: number) => T)
+): T[] {
+    const result = [];
+    for (let i = 0; i < length; i++) {
+        if (contents instanceof Function) {
+            result.push(contents(i));
+        } else {
+            result.push(contents);
+        }
+    }
     return result;
+}
+
+export function extendArr<T>(
+    arr: T[],
+    targetLength: number,
+    contents?: T | ((index:number) => T)
+) {
+    while (arr.length < targetLength) {
+        if (contents instanceof Function) {
+            arr.push(contents(arr.length));
+        } else {
+            arr.push(contents);
+        }
+    }
 }
 
 export function asReadonly<T>(arr: readonly T[]): readonly T[] {
@@ -22,10 +51,6 @@ export function asReadonly<T>(arr: readonly T[]): readonly T[] {
 export function asWritable<T>(arr: readonly T[]): T[] {
     return arr as T[];
 }
-
-
-
-
 
 /**
  * Copy data from one array to another.
