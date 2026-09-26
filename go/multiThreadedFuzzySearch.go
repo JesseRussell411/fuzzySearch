@@ -7,7 +7,7 @@ type Output struct {
 	index  int
 }
 
-func gorun[R any](f func() R) chan R {
+func Gorun[R any](f func() R) chan R {
 	c := make(chan R)
 	go (func() {
 		result := f()
@@ -18,7 +18,7 @@ func gorun[R any](f func() R) chan R {
 
 func multiThreadedFuzzySearch(test, search string) FuzzySearchMatch {
 	searchLength := utf8.RuneCountInString(search)
-	strings := breakIntoSubstrings_utf8(test, 16)
+	strings := BreakIntoSubstrings_utf8(test, 16)
 	resultChannels := make([]chan FuzzySearchMatch, len(strings))
 	chunkSizes := make([]int, len(strings))
 
@@ -26,7 +26,7 @@ func multiThreadedFuzzySearch(test, search string) FuzzySearchMatch {
 
 	for i, s := range strings {
 		// c := make(chan FuzzySearchMatch)
-		c := gorun(
+		c := Gorun(
 			FuzzySearchWith(s, search).
 				priv_RootCache(rowCache).
 				TakeTestRuneCount(func(runeCount int) {

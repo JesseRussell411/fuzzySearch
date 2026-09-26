@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"math"
 	"sync"
 	"unicode/utf8"
@@ -187,12 +188,12 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 
 	//#region multi-threading
 	if threadCount > 1 {
-		substrings := breakIntoSubstrings_utf8(test, threadCount)
+		substrings := BreakIntoSubstrings_utf8(test, threadCount)
 		resultChannels := make([]chan FuzzySearchMatch, threadCount)
 		runeCounts := make([]int, threadCount)
 
 		for i, substring := range substrings {
-			c := gorun(
+			c := Gorun(
 				FuzzySearchWith(substring, search).
 					ThreadCount(0).
 					priv_SearchLength(searchLength).
@@ -230,6 +231,24 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 		seedRow[i] = i
 	}
 
+	search_utf32 := make([]byte, searchLength*4)
+
+	sb := 0
+	b := 0
+	for {
+		runeLength := BytesInRune_utf8(search[sb])
+		for runeByte := range runeLength {
+			search_utf32[b+runeByte] = search[sb+runeByte]
+		}
+		sb += runeLength
+		b += 4
+
+		if b >= searchLength*4 {
+			break
+		}
+	}
+	fmt.Println(search_utf32)
+
 	prevRow := seedRow
 
 	// window byte offset
@@ -240,7 +259,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	potentialEditDistanceForWI := 0
 	for {
 		// byte count of rune at start of window
-		windowRuneLength, _ := bytesInRune_utf8(test[wb])
+		windowRuneLength := BytesInRune_utf8(test[wb])
 
 		// byte count of current rune in test
 		testRuneLength := windowRuneLength
@@ -275,7 +294,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			if wbc >= len(test)-wb {
 				break
 			}
-			testRune, _ := runeAtByteInString(test, tb)
+			testRune, _ := RuneAtByteInString(test, tb)
 			// ED matrix row
 			r := wl
 			cacheAny, cacheHit := prevCache.children.Load(testRune)
@@ -293,7 +312,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 				// search byte offset
 				sb := 0
 				for {
-					searchRuneLength, _ := bytesInRune_utf8(search[sb])
+					searchRuneLength := BytesInRune_utf8(search[sb])
 					c := si + 1
 
 					// instead of converting the bytes in search and test
@@ -316,18 +335,18 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 					// searchRune, _ := runeAtByteInString(search, sb)
 					// match := testRune == searchRune
 					//#endregion
-					editDistMatched := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
+					editDistMatched := UnsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
 
-					north := unsafeBoundlessSliceGet_int(prevRow, uintptr(c))
-					northWest := unsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
-					west := unsafeBoundlessSliceGet_int(row, uintptr(c-1))
+					north := UnsafeBoundlessSliceGet_int(prevRow, uintptr(c))
+					northWest := UnsafeBoundlessSliceGet_int(prevRow, uintptr(c-1))
+					west := UnsafeBoundlessSliceGet_int(row, uintptr(c-1))
 					editDistUnMatched := 1 + min(north, northWest, west)
 
 					// condition at the end slightly faster
 					if match {
-						unsafeBoundlessSliceSet_int(row, uintptr(c), editDistMatched)
+						UnsafeBoundlessSliceSet_int(row, uintptr(c), editDistMatched)
 					} else {
-						unsafeBoundlessSliceSet_int(row, uintptr(c), editDistUnMatched)
+						UnsafeBoundlessSliceSet_int(row, uintptr(c), editDistUnMatched)
 					}
 
 					si++
@@ -356,7 +375,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			}
 
 			// editDist := prevRow[searchLength]
-			editDist := unsafeBoundlessSliceGet_int(prevRow, uintptr(searchLength))
+			editDist := UnsafeBoundlessSliceGet_int(prevRow, uintptr(searchLength))
 
 			if editDist <= minimumEditDistanceFromWI {
 				minimumEditDistanceFromWI = editDist
@@ -374,7 +393,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			ti++
 			wl++
 
-			testRuneLength, _ = bytesInRune_utf8(test[tb])
+			testRuneLength = BytesInRune_utf8(test[tb])
 		}
 		// reset rows
 		prevRow = seedRow

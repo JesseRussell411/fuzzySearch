@@ -57,7 +57,7 @@ func subString_utf8(str string, start, length int) (substring string, actualStar
 	return
 }
 
-func breakIntoSubstrings_utf8(str string, count int) []string {
+func BreakIntoSubstrings_utf8(str string, count int) []string {
 	length := len(str) / count
 	remainder := len(str) % count
 	totalLength := 0
@@ -82,7 +82,7 @@ func breakIntoSubstrings_utf8(str string, count int) []string {
 	return result
 }
 
-func runeAtByteInString(s string, b int) (r rune, l int) {
+func RuneAtByteInString(s string, b int) (r rune, l int) {
 	subString := s[b:]
 	r, l = utf8.DecodeRuneInString(subString)
 	return
