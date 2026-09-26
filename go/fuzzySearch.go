@@ -207,6 +207,13 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 			minimumEditDistance: searchLength,
 		}
 
+		// TODO! check the sections that are cut in half by splitting the string
+		// the ,quick,brown, fox,jumps, over, the ,lazy ,dog
+		//  |      |
+		// this section in between the split
+		// this is gonna be really hard
+		// and even harder with utf-8
+
 		byteOffset := 0
 		runeOffset := 0
 		for i, c := range resultChannels {
@@ -232,22 +239,26 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	}
 
 	search_utf32 := make([]byte, searchLength*4)
+	searchRuneLengths := make([]int, searchLength)
 
 	sb := 0
-	b := 0
+	i := 0
 	for {
 		runeLength := BytesInRune_utf8(search[sb])
+		searchRuneLengths[i] = runeLength
 		for runeByte := range runeLength {
-			search_utf32[b+runeByte] = search[sb+runeByte]
+			search_utf32[i*4+runeByte] = search[sb+runeByte]
 		}
-		sb += runeLength
-		b += 4
 
-		if b >= searchLength*4 {
+		sb += runeLength
+		i++
+
+		if i >= searchLength {
 			break
 		}
 	}
 	fmt.Println(search_utf32)
+	fmt.Println(searchRuneLengths)
 
 	prevRow := seedRow
 
@@ -307,12 +318,9 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 				// populate seed column
 				row[0] = r
 
-				// search rune offset
-				si := 0
-				// search byte offset
-				sb := 0
-				for {
-					searchRuneLength := BytesInRune_utf8(search[sb])
+				for si := range searchLength {
+					// searchRuneLength := BytesInRune_utf8(search[sb])
+					searchRuneLength := searchRuneLengths[si]
 					c := si + 1
 
 					// instead of converting the bytes in search and test
@@ -325,7 +333,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 							// searchByte := unsafeBoundlessStringGet(search, uintptr(sb+rb))
 							// testByte := unsafeBoundlessStringGet(test, uintptr(tb+rb))
 							// match = searchByte == testByte
-							match = search[sb+rb] == test[tb+rb]
+							match = search_utf32[si*4+rb] == test[tb+rb]
 							if !match {
 								break
 							}
@@ -347,12 +355,6 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 						UnsafeBoundlessSliceSet_int(row, uintptr(c), editDistMatched)
 					} else {
 						UnsafeBoundlessSliceSet_int(row, uintptr(c), editDistUnMatched)
-					}
-
-					si++
-					sb += searchRuneLength
-					if sb >= len(search) || si >= searchLength {
-						break
 					}
 				}
 
