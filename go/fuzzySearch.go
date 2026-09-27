@@ -242,8 +242,7 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 	searchRuneLengths := make([]int, searchLength)
 
 	sb := 0
-	i := 0
-	for {
+	for i := range(searchLength){
 		runeLength := BytesInRune_utf8(search[sb])
 		searchRuneLengths[i] = runeLength
 		for runeByte := range runeLength {
@@ -251,12 +250,8 @@ func fuzzySearchFromBuilder(params FuzzySearchParams) FuzzySearchMatch {
 		}
 
 		sb += runeLength
-		i++
-
-		if i >= searchLength {
-			break
-		}
 	}
+	
 	fmt.Println(search_utf32)
 	fmt.Println(searchRuneLengths)
 
