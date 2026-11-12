@@ -41,7 +41,7 @@ function flush() {
 print(" ");
 print(" ".repeat(widths[0]));
 for (const [x, c] of enumerate(b)) {
-    const width = widths[x];
+    const width = widths[x + 1];
 
     print(c.padStart(width));
 }
