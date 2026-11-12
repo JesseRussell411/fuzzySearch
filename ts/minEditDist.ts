@@ -1,16 +1,4 @@
-
-function genArr<T = undefined>(length: number, contents?: T | ((index: number) => T)): T[]{
-    const result = new Array(length);
-    for (let i = 0; i < length; i++) {
-        if (contents instanceof Function) {
-            result[i] = contents(i);
-        } else {
-            result[i] = contents;
-        }
-    }
-    return result;
-}
-
+import { genArr } from "./array.ts";
 
 let currentRow = genArr(8, 0);
 let prevRow: readonly number[] = genArr(8, 0);
@@ -112,3 +100,45 @@ export function getMinimumSubLengthEditDistance(search: string, test: string): {
 
     return {length, editDistance}
 }
+
+
+
+
+
+
+export function levensteinGrid(a: string, b: string): string[][] {
+    const result = genArr(
+        a.length + 1, 
+        (y) => {
+            if (y === 0) {
+                return genArr(b.length + 1, x => x); // seed row
+            } else {
+                return genArr(
+                    b.length + 1,
+                    x => x === 0 ? y : 0 // seed column
+                );
+            }
+        }
+    );
+
+    const charCodes_a = genArr(a.length, i => a.charCodeAt(i));
+    const charCodes_b = genArr(b.length, i => b.charCodeAt(i));
+
+    for (let x = 1; x <= b.length; x++) {
+        for (let y = 1; y <= a.length; y++) {
+            if (charCodes_a[y-1] === charCodes_b[x-1]) {
+                result[y][x] = result[y-1][x-1]
+            } else {
+                result[y][x] = Math.min(
+                    result[y-1][x-0],
+                    result[y-0][x-1],
+                    result[y-1][x-1],
+                ) + 1;
+            }
+        }
+    }
+
+
+    return result;
+}
+

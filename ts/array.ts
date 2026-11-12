@@ -19,14 +19,15 @@ export function genArr<T = undefined>(
     length: number,
     contents?: T | ((index: number) => T)
 ): T[] {
-    const result = [];
-    for (let i = 0; i < length; i++) {
-        if (contents instanceof Function) {
-            result.push(contents(i));
-        } else {
-            result.push(contents);
-        }
-    }
+    const result = Array.from(
+        {length},
+        contents instanceof Function ? 
+            ((_, i) => contents(i)) :
+            contents === undefined ?
+                undefined :
+                (() => contents)
+    );
+
     return result;
 }
 
